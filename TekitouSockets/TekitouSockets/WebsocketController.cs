@@ -92,9 +92,9 @@ namespace Tekitou
 			_server = new Socket (AddressFamily.InterNetwork,
 			                      SocketType.Stream, ProtocolType.Tcp);
 
-			_server.Connect ("ujkkb7794f59.jghough.koding.io", 8991);
+			_server.Connect ("websocket.org", 80);
 			string hk = GenerateHeaderKey ();
-			string hdr = MakeHeader (hk, "ujkkb7794f59.jghough.koding.io", "8991", "/", "null");
+			string hdr = MakeHeader (hk, "echo.websocket.org", "80", "/echo", "null");
 			Console.WriteLine (hdr);
 			_server.Send (Encoding.UTF8.GetBytes (hdr));
 
