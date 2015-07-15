@@ -64,6 +64,8 @@ namespace Tekitou
 		string _protocol = "ws";
 		string _url = "";
 		string _port = "80";
+		string _resource = "/";
+		string _hostUri = "";
 		static byte[] data = new byte[1024];
 		private Action<string> _onReceive;
 		private Action<string> _onError;
@@ -71,10 +73,14 @@ namespace Tekitou
 		private Action<string> _onClose;
 		private Socket _server;
 
-		public void Setup (string url, string port, params string[] args)
+		public void Setup (string url, string port, string resource = null, string hostUri = null)
 		{
-			_url = url;
+			_url = url.Split ("://".ToCharArray ()) [3].Trim ();
 			_port = port;
+			if(resource != null)
+				_resource = resource;
+			if (hostUri != null)
+				_hostUri = hostUri;
 			_protocol = url.Split ("://".ToCharArray ()) [0].Trim (); //ws or wss
 			_state = State.CLOSED;
 
@@ -92,9 +98,9 @@ namespace Tekitou
 			_server = new Socket (AddressFamily.InterNetwork,
 			                      SocketType.Stream, ProtocolType.Tcp);
 
-			_server.Connect ("websocket.org", 80);
+			_server.Connect (_url, int.Parse(_port));
 			string hk = GenerateHeaderKey ();
-			string hdr = MakeHeader (hk, "echo.websocket.org", "80", "/echo", "null");
+			string hdr = MakeHeader (hk, _hostUri, _port, _resource, "null");
 			Console.WriteLine (hdr);
 			_server.Send (Encoding.UTF8.GetBytes (hdr));
 
