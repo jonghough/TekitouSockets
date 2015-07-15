@@ -10,6 +10,7 @@ namespace Tekitou
 			Console.WriteLine ("Starting up websocket...");
 			Thread thread = null;
 			WebsocketController ws = new WebsocketController ();
+			ws.Setup ("ws://websocket.org", "80", "/echo", "echo.websocket.org");
 			ThreadStart ts = new ThreadStart (() => {
 				ws.Connect ((str) => {
 					Console.WriteLine ("OPEN");
