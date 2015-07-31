@@ -30,7 +30,7 @@ namespace Tekitou
 		const int INTERNAL_SERVER_ERR = 1011;
 		const int TLS_HANDSHAKE = 1015;
 		//Websocket op-codes
-		//see RFC 6455 Section 11.8;// (Opcodes)
+		//see RFC 6455 Section 11.8;
 		const int CONTINUATION_FRAME = 0x0;
 		const int TEXT_FRAME = 0x1;
 		const int BINARY_FRAME = 0x2;
@@ -42,7 +42,6 @@ namespace Tekitou
 		const int res1_bits = 0x40;
 		const int res2_bits = 0x20;
 		const int res3_bits = 0x10;
-		const int opcode = 0xF;
 		//opcode
 		const int len_mask = 0x80;
 		const int MAX_DATA_NO_EXTENSION = 126;
@@ -66,7 +65,7 @@ namespace Tekitou
 		string _port = "80";
 		string _resource = "/";
 		string _hostUri = "";
-		static byte[] data = new byte[1024];
+		static byte[] data = new byte[4096];
 		private Action<string> _onReceive;
 		private Action<string> _onError;
 		private Action<string> _onOpen;
@@ -104,7 +103,6 @@ namespace Tekitou
 			Console.WriteLine (hdr);
 			_server.Send (Encoding.UTF8.GetBytes (hdr));
 
-
 			int recv = _server.Receive (data);
 			string stringData = Encoding.ASCII.GetString (data, 0, recv);
 			_state = State.HANDSHAKE;
@@ -131,7 +129,10 @@ namespace Tekitou
 				_state = State.CLOSED;
 			}
 		}
-
+		/// <summary>
+		/// Closes the connection with the specificed reason.
+		/// </summary>
+		/// <param name="reason">Reason.</param>
 		public void Close (string reason)
 		{
 			if (_server != null && (_state == State.CONNECTED || _state == State.CONNECTING)) {
@@ -143,12 +144,11 @@ namespace Tekitou
 		private void Listen (Socket server)
 		{
 			int recv = 0;
-			string stringData;
 			while (_state == State.CONNECTED || _state == State.CLOSING) {
 				recv = server.Receive (data);
-				stringData = Encoding.ASCII.GetString (data, 0, recv);
 				FrameHolder f = new FrameHolder (data);
-				//Console.WriteLine (f._finbit + ", " + Encoding.ASCII.GetString (f._message) + ", " + f._opcode);
+				//clear the buffer
+				data = new byte[4096];
 				//begin fragment
 				if (f._finbit == 0 && !_continuationFrameFlg && f._opcode == CONTINUATION_FRAME) {
 					_continuationFrameFlg = true;
@@ -194,7 +194,15 @@ namespace Tekitou
 				}
 			}
 		}
-
+		/// <summary>
+		/// Makes the header.
+		/// </summary>
+		/// <returns>The header.</returns>
+		/// <param name="socketKey">Socket key.</param>
+		/// <param name="hostUri">Host URI.</param>
+		/// <param name="port">Port.</param>
+		/// <param name="resource">Resource.</param>
+		/// <param name="origin">Origin.</param>
 		public static string MakeHeader (string socketKey, string hostUri, string port, string resource, string origin)
 		{
 			string header = "GET " + resource + " HTTP/1.1\r\n"
@@ -250,11 +258,16 @@ namespace Tekitou
 			byte[] frame;
 			if (len < MAX_DATA_NO_EXTENSION)
 				frame = new byte[] {
-				BitConverter.GetBytes (frameInt) [0],
-				BitConverter.GetBytes (maskBit | len) [0]
-			};
-			else if (len < DATA_2_BYTE_EXTENSION)
-				frame = Combine (BitConverter.GetBytes (maskBit | 0x7e), BitConverter.GetBytes (len));
+					BitConverter.GetBytes (frameInt) [0],
+					BitConverter.GetBytes (maskBit | len) [0]
+				};
+			else if (len < DATA_2_BYTE_EXTENSION) {
+				byte msk = (1 << 7) | 0x7e;
+				UInt16 ln = (UInt16)len;
+				byte[] cv = BitConverter.GetBytes(ln);
+				Array.Reverse(cv);//network byte order.
+				frame = new byte[] {BitConverter.GetBytes (frameInt) [0], msk, cv[0],cv[1]}; 
+			}
 			else
 				frame = Combine (BitConverter.GetBytes (maskBit | 0x7f), BitConverter.GetBytes (len));
 			byte[] k = new byte[4];
@@ -281,6 +294,9 @@ namespace Tekitou
 		}
 	}
 }
+/// <summary>
+/// Frame holder. For reading in frames from server.
+/// </summary>
 public class FrameHolder
 {
 	public bool _valid_frame = true;
@@ -301,9 +317,9 @@ public class FrameHolder
 		_msg_length = (l & 0xFF);
 
 		if (l == 126) {
-			_message = Slice (rawFrame, 4, _msg_length);
+			_message = Slice (rawFrame, 4, rawFrame.Length - 4);
 		} else if (l == 127) {
-			_message = Slice (rawFrame, 10, _msg_length);
+			_message = Slice (rawFrame, 10, rawFrame.Length - 10);
 		} else {
 			_message = Slice (rawFrame, 2, _msg_length);
 		}
