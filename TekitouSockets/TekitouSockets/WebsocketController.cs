@@ -264,12 +264,17 @@ namespace Tekitou
 			else if (len < DATA_2_BYTE_EXTENSION) {
 				byte msk = (1 << 7) | 0x7e;
 				UInt16 ln = (UInt16)len;
-				byte[] cv = BitConverter.GetBytes(ln);
-				Array.Reverse(cv);//network byte order.
-				frame = new byte[] {BitConverter.GetBytes (frameInt) [0], msk, cv[0],cv[1]}; 
+				byte[] cv = BitConverter.GetBytes (ln);
+				Array.Reverse (cv);//network byte order.
+				frame = new byte[] { BitConverter.GetBytes (frameInt) [0], msk, cv[0], cv[1] }; 
+			} else { //8 byte extension.
+				byte msk = (1 << 7) | 0x7f;
+				UInt64 ln = (UInt64)len;
+				byte[] cv = BitConverter.GetBytes (ln);
+				Array.Reverse (cv);//network byte order.
+				frame = new byte[] { BitConverter.GetBytes (frameInt) [0], msk, 
+					cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7] }; 
 			}
-			else
-				frame = Combine (BitConverter.GetBytes (maskBit | 0x7f), BitConverter.GetBytes (len));
 			byte[] k = new byte[4];
 			Random random = new Random ();
 			random.NextBytes (k);
