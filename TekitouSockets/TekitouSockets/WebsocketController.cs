@@ -47,8 +47,8 @@ namespace Tekitou
 		const int MAX_DATA_NO_EXTENSION = 126;
 		const int DATA_2_BYTE_EXTENSION = 1 << 16;
 		const int DATA_8_BYTE_EXTENSION = 1 << 63;
-
-		private enum State
+		
+		public enum State
 		{ 			
 			CONNECTING,
 			HANDSHAKE,
@@ -56,7 +56,7 @@ namespace Tekitou
 			CLOSING,
 			CLOSED
 		}
-
+		
 		private State _state = State.CLOSED;
 		private bool _continuationFrameFlg = false;
 		private byte[] _continuationData;
@@ -71,7 +71,7 @@ namespace Tekitou
 		private Action<string> _onOpen;
 		private Action<string> _onClose;
 		private Socket _server;
-
+		
 		public void Setup (string url, string port, string resource = null, string hostUri = null)
 		{
 			_url = url.Split ("://".ToCharArray ()) [3].Trim ();
@@ -82,27 +82,27 @@ namespace Tekitou
 				_hostUri = hostUri;
 			_protocol = url.Split ("://".ToCharArray ()) [0].Trim (); //ws or wss
 			_state = State.CLOSED;
-
+			
 		}
-
+		
 		public void Connect (Action<string> onOpen, Action<string> onReceive, Action<string> onClose, Action<string> onError)
 		{
 			_onOpen = onOpen;
 			_onReceive = onReceive;
 			_onClose = onClose;
 			_onError = onError;
-
+			
 			_state = State.CONNECTING;
-
+			
 			_server = new Socket (AddressFamily.InterNetwork,
 			                      SocketType.Stream, ProtocolType.Tcp);
-
+			
 			_server.Connect (_url, int.Parse(_port));
 			string hk = GenerateHeaderKey ();
 			string hdr = MakeHeader (hk, _hostUri, _port, _resource, "null");
 			Console.WriteLine (hdr);
 			_server.Send (Encoding.UTF8.GetBytes (hdr));
-
+			
 			int recv = _server.Receive (data);
 			string stringData = Encoding.ASCII.GetString (data, 0, recv);
 			_state = State.HANDSHAKE;
@@ -116,12 +116,12 @@ namespace Tekitou
 					dic [s2 [0].Trim ()] = s2 [1].Trim ();
 				}
 			}
-
+			
 			if (ExpectedValue (hk).Trim () == dic ["Sec-WebSocket-Accept"]) {
 				_state = State.CONNECTED;
 				if (_onOpen != null)
 					_onOpen ("open");
-
+				
 				Listen (_server);
 			} else {
 				_server.Close ();
@@ -129,6 +129,12 @@ namespace Tekitou
 				_state = State.CLOSED;
 			}
 		}
+
+
+		public State GetConnectionState(){
+			return _state;
+		}
+
 		/// <summary>
 		/// Closes the connection with the specificed reason.
 		/// </summary>
@@ -140,7 +146,7 @@ namespace Tekitou
 				_state = State.CLOSED;
 			}
 		}
-
+		
 		private void Listen (Socket server)
 		{
 			int recv = 0;
@@ -156,38 +162,38 @@ namespace Tekitou
 				} else {
 					//switch opcode
 					switch (f._opcode) {
-						case TEXT_FRAME:
+					case TEXT_FRAME:
 					{
 						if (_onReceive != null) {
 							_onReceive (Encoding.ASCII.GetString (f._message));
 						}
 						break;
 					}
-						case BINARY_FRAME:
+					case BINARY_FRAME:
 						break;
-						case CONTINUATION_FRAME:
+					case CONTINUATION_FRAME:
 						_continuationFrameFlg = true;
-
+						
 						if (_continuationData == null)
 							_continuationData = f._message;
 						else
 							_continuationData = Combine (_continuationData, f._message);
-
+						
 						if (f._finbit == 1) {
 							_continuationFrameFlg = false;
 							_onReceive (Encoding.UTF8.GetString (_continuationData));
 							_continuationData = null;
 						}
 						break;
-						case CLOSE_FRAME:
+					case CLOSE_FRAME:
 						_server.Send (MakeFrame ("1000", CLOSE_FRAME));
 						_state = State.CLOSED;
 						_onClose ("Connection closed.");
 						break;
-						case PING_FRAME:
+					case PING_FRAME:
 						_server.Send (MakeFrame (f._message, PONG_FRAME));
 						break;
-						case PONG_FRAME:
+					case PONG_FRAME:
 						_server.Send (MakeFrame (f._message, PING_FRAME));
 						break;
 					}
@@ -215,7 +221,7 @@ namespace Tekitou
 					+ "Sec-WebSocket-Version: 13\r\n\r\n";
 			return header;
 		}
-
+		
 		public static string GenerateHeaderKey ()
 		{
 			byte[] array = new byte[16];
@@ -223,33 +229,33 @@ namespace Tekitou
 			random.NextBytes (array);
 			return Convert.ToBase64String (array);
 		}
-
+		
 		public static string ExpectedValue (string v)
 		{
 			HashAlgorithm algorithm = SHA1.Create ();  
 			return Convert.ToBase64String (algorithm.ComputeHash (Encoding.UTF8.GetBytes (v + GUID)));
 		}
-
+		
 		public string ProcessResponse (byte[] res)
 		{
 			FrameHolder fh = new FrameHolder (res);
 			// for now
 			return fh.msg;
-
+			
 		}
-
+		
 		public void Send (string message)
 		{
 			byte[] fr = MakeFrame (message, TEXT_FRAME);
 			_server.Send (fr);
 		}
-
+		
 		public static byte[] MakeFrame (string message, int opcode)
 		{
 			byte[] data = Encoding.UTF8.GetBytes (message);
 			return MakeFrame (data, opcode);
 		}
-
+		
 		public static byte[] MakeFrame (byte[] data, int opcode)
 		{
 			int frameInt = (1 << 7) | opcode;
@@ -257,10 +263,10 @@ namespace Tekitou
 			int len = data.Length;
 			byte[] frame;
 			if (len < MAX_DATA_NO_EXTENSION)
-				frame = new byte[] {
-					BitConverter.GetBytes (frameInt) [0],
-					BitConverter.GetBytes (maskBit | len) [0]
-				};
+			frame = new byte[] {
+				BitConverter.GetBytes (frameInt) [0],
+				BitConverter.GetBytes (maskBit | len) [0]
+			};
 			else if (len < DATA_2_BYTE_EXTENSION) {
 				byte msk = (1 << 7) | 0x7e;
 				UInt16 ln = (UInt16)len;
@@ -281,7 +287,7 @@ namespace Tekitou
 			byte[] res = Combine (Combine (frame, k), Mask (k, data));
 			return res;
 		}
-
+		
 		public static byte[] Combine (byte[] first, byte[] second)
 		{
 			byte[] ret = new byte[first.Length + second.Length];
@@ -289,7 +295,7 @@ namespace Tekitou
 			Buffer.BlockCopy (second, 0, ret, first.Length, second.Length);
 			return ret;
 		}
-
+		
 		public static byte[] Mask (byte[] key, byte[] data)
 		{
 			for (int i = 0; i < data.Length; i++) {
@@ -310,17 +316,17 @@ public class FrameHolder
 	public int _msg_length = 0;
 	public byte[] _message = null;
 	public string msg = null;
-
+	
 	public FrameHolder (byte[] rawFrame)
 	{
 		//this.FrameHolder ();
 		byte first = rawFrame [0];
 		_finbit = (byte)((first >> 7) & 0xFF);
 		_opcode = (byte)(first & 0xF);
-
+		
 		byte l = rawFrame [1];
 		_msg_length = (l & 0xFF);
-
+		
 		if (l == 126) {
 			_message = Slice (rawFrame, 4, rawFrame.Length - 4);
 		} else if (l == 127) {
@@ -328,10 +334,10 @@ public class FrameHolder
 		} else {
 			_message = Slice (rawFrame, 2, _msg_length);
 		}
-
+		
 		msg = Encoding.UTF8.GetString (_message);
 	}
-
+	
 	/// <summary>
 	/// Slice the source byte array by offset and length.
 	/// </summary>
