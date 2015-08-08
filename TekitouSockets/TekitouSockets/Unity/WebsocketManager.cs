@@ -127,23 +127,22 @@ public class WebsocketManager : MonoBehaviour {
 	/// <param name="resource">Resource.</param>
 	/// <param name="hostUri">Host URI.</param>
 	public void Setup(string url, string port = "80", string resource = null, string hostUri = null){
-		lock (_lock) {
-			_thread = null;
+		
+		_thread = null;
 
-			_websocketController = new WebsocketController ();
-			_websocketController.Setup (url, port, resource, hostUri);
-
-			_threadStart = new ThreadStart( ()=>{
-				_websocketController.Connect (
-					(o) => {lock(_lock){_openStr = o;}},
-					(r) => {lock(_lock){_recStr = r;}},
-					(c) => {lock(_lock){_closeStr = c;}},
-					(e) => {lock(_lock){_errStr = e;}}
-				);
-			});
-			_thread = new Thread (_threadStart);
-			_thread.Start ();
-		}
+		_websocketController = new WebsocketController ();
+		_websocketController.Setup (url, port, resource, hostUri);
+			
+		_threadStart = new ThreadStart( ()=>{
+			_websocketController.Connect (
+				(o) => {lock(_lock){_openStr = o;}},
+				(r) => {lock(_lock){_recStr = r;}},
+				(c) => {lock(_lock){_closeStr = c;}},
+				(e) => {lock(_lock){_errStr = e;}}
+			);
+		});
+		_thread = new Thread (_threadStart);
+		_thread.Start ();
 	}
 
 	///<summary>
